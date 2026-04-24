@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sensor Data Dashboard</title>
+  <!-- Incluye Chart.js desde CDN -->
+  <script src="./chart.js"></script>
+  <!-- Incluye SortableJS desde CDN para reordenar las tarjetas -->
+  <script src="./Sortable.min.js"></script>
+  <style>
+    /* Estilos generales */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #fafafa;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 10px 20px;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+    /* Estilos para el botón de color salmón */
+    .salmon-button {
+      font-size: 14px;
+      padding: 8px 15px;
+      background-color: #FF7F7F;  /* Color salmón */
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .salmon-button:hover {
+      background-color: #ff4d4d; /* Un tono más oscuro cuando se pasa el cursor */
+    }
+    /* Estilos para el botón de calibración */
+    .calibration-button {
+      font-size: 14px;
+      padding: 8px 15px;
+      background-color: #007bff;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .calibration-button:hover {
+      background-color: #0056b3;
+    }
+    /* Contenedor del gráfico */
+    .chart-container {
+      position: relative;
+      width: 100%;
+      height: 200px;
+      background-color: #fff;
+      border-bottom: 1px solid #ddd;
+    }
+    .chart-container canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    /* Contenedor de tarjetas reordenable */
+    #cardsContainer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 10px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 8px;
+      flex: 1 1 200px;
+      max-width: 220px;
+      cursor: move; /* Indica que se puede arrastrar */
+    }
+    .card h3 {
+      margin: 0;
+      font-size: 16px;
+      text-align: center;
+      margin-bottom: 5px;
+    }
+    .card p {
+      margin: 3px 0;
+      font-size: 14px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- Encabezado con título y los botones -->
+  <header>
+    <h1>Sensor Data Dashboard</h1>
+    <!-- Botón de color salmón antes del botón calibración -->
+    <a href="tara.html" class="salmon-button">TARA</a>
+    <a href="calibrate.html" class="calibration-button">Calibration</a>
+  </header>
+
+  <!-- Contenedor del gráfico -->
+  <div class="chart-container">
+    <canvas id="liveChart"></canvas>
+  </div>
+
+  <!-- Contenedor de tarjetas reordenable -->
+  <div id="cardsContainer">
+    <div class="card">
+      <h3>ADC Test</h3>
+      <p>Raw ADC: <span id="i2cVal">0</span></p>
+      <p>Voltage: <span id="voltageVal">0.000000</span> V</p>
+    </div>
+    <div class="card">
+      <h3>Weight Measurements</h3>
+      <p>Weight (Grams): <span id="weightGrams">0</span> g</p>
+      <p>Weight (Newtons): <span id="weightNewtons">0</span> N</p>
+    </div>
+    <div class="card">
+      <h3>Pressure Measurement</h3>
+      <p>Pressure (mmHg): <span id="pressureVal">0</span> mmHg</p>
+    </div>
+  </div>
+
+  <script>
+    // Inicializar SortableJS para permitir reordenar las tarjetas
+    Sortable.create(document.getElementById('cardsContainer'), {
+      animation: 150,
+      ghostClass: 'sortable-ghost'
+    });
+
+    // Configuración global de Chart.js
+    Chart.defaults.backgroundColor = 'rgba(0, 0, 0, 0)';
+    Chart.defaults.color = '#333';
+
+    // Crear el gráfico con raw ADC y voltaje visibles para pruebas de sensores.
+    const ctx = document.getElementById('liveChart').getContext('2d');
+    const liveChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'I2C Raw',
+            data: [],
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.1,
+            pointRadius: 0,
+            hidden: false  // Visible por defecto
+          },
+          {
+            label: 'Voltage (V)',
+            data: [],
+            borderColor: 'rgba(255, 159, 64, 1)',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.1,
+            pointRadius: 0,
+            yAxisID: 'yVoltage',
+            hidden: false  // Visible por defecto
+          },
+          {
+            label: 'Weight (g)',
+            data: [],
+            borderColor: 'rgba(255, 99, 132, 1)',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.1,
+            pointRadius: 0,
+            hidden: true  // Oculto por defecto
+          },
+          {
+            label: 'Pressure (mmHg)',
+            data: [],
+            borderColor: 'rgba(54, 162, 235, 1)',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.1,
+            pointRadius: 0,
+            hidden: true  // Oculto por defecto
+          }
+        ]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { display: false },
+          y: { beginAtZero: true },
+          yVoltage: {
+            beginAtZero: true,
+            position: 'right',
+            grid: { drawOnChartArea: false }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: { font: { size: 12 } }
+          }
+        }
+      }
+    });
+
+    // WebSocket: ajustar la dirección y puerto según tu configuración
+    let ws;
+    function initWebSocket() {
+      ws = new WebSocket('ws://' + window.location.hostname + ':81/');
+      ws.onopen = () => {
+        console.log('WebSocket conectado');
+      };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          updateDashboard(data);
+        } catch (error) {
+          console.error('Error al parsear JSON:', error);
+        }
+      };
+      ws.onclose = () => {
+        console.log('WebSocket desconectado, reconectando en 2 segundos...');
+        setTimeout(initWebSocket, 2000);
+      };
+    }
+    initWebSocket();
+
+    // Función para actualizar el dashboard
+    function updateDashboard(data) {
+      const rawI2C = Number(data.rawI2C ?? 0);
+      const voltage = Number(data.voltage ?? 0);
+      const weight = Number(data.weight ?? 0);
+      const newtons = Number(data.newtons ?? 0);
+      const pressure = Number(data.pressure ?? 0);
+
+      // Actualizar tarjetas
+      document.getElementById('weightGrams').textContent = weight.toFixed(2);
+      document.getElementById('weightNewtons').textContent = newtons.toFixed(2);
+      document.getElementById('pressureVal').textContent = pressure.toFixed(2);
+      document.getElementById('i2cVal').textContent = rawI2C;
+      document.getElementById('voltageVal').textContent = voltage.toFixed(6);
+
+      // Añadir etiquetas y datos al gráfico
+      const now = new Date().toLocaleTimeString();
+
+      liveChart.data.labels.push(now);
+      liveChart.data.datasets[0].data.push(rawI2C);
+      liveChart.data.datasets[1].data.push(voltage);
+      liveChart.data.datasets[2].data.push(weight);
+      liveChart.data.datasets[3].data.push(pressure);
+
+      // Limitar la cantidad de puntos a 100 para no saturar el gráfico
+      const maxPoints = 100;
+      if (liveChart.data.labels.length > maxPoints) {
+        liveChart.data.labels.shift();
+        liveChart.data.datasets.forEach(ds => ds.data.shift());
+      }
+
+      liveChart.update('none');
+    }
+  </script>
+</body>
+</html>
