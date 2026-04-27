@@ -1,4 +1,4 @@
-#include <Wire.h>  // Para I2C/SMBus
+t#include <Wire.h>  // Para I2C/SMBus
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 #include <LittleFS.h>  // Para almacenamiento de archivos HTML y JS
