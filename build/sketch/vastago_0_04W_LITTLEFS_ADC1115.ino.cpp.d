@@ -180,7 +180,8 @@
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/tools/sdk/esp32s3/include/esp_hw_support/include/soc/esp32/spiram.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/cores/esp32/io_pin_remap.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/cores/esp32/Arduino.h \
- /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/WebServer/src/WebServer.h \
+ /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/Wire/src/Wire.h \
+ /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/cores/esp32/esp32-hal.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/WiFi/src/WiFi.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/cores/esp32/Print.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/cores/esp32/IPv6Address.h \
@@ -201,6 +202,7 @@
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/WiFi/src/WiFiUdp.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/cores/esp32/Udp.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/cores/esp32/cbuf.h \
+ /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/WebServer/src/WebServer.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/WebServer/src/HTTP_Method.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/tools/sdk/esp32s3/include/nghttp/port/include/http_parser.h \
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/WebServer/src/Uri.h \
@@ -255,8 +257,6 @@
  /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/SD/src/sd_defines.h \
  /home/ale/Arduino/libraries/Adafruit_ADS1X15/Adafruit_ADS1X15.h \
  /home/ale/Arduino/libraries/Adafruit_BusIO/Adafruit_I2CDevice.h \
- /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/libraries/Wire/src/Wire.h \
- /data/home/ale/.arduino15/packages/esp32/hardware/esp32/2.0.17/cores/esp32/esp32-hal.h \
  /home/ale/Arduino/libraries/U8g2/src/U8g2lib.h \
  /home/ale/Arduino/libraries/U8g2/src/U8x8lib.h \
  /home/ale/Arduino/libraries/U8g2/src/clib/u8x8.h \

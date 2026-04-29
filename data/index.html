@@ -2,276 +2,953 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Sensor Data Dashboard</title>
-  <!-- Incluye Chart.js desde CDN -->
+  <title>Experimento V1</title>
   <script src="./chart.js"></script>
-  <!-- Incluye SortableJS desde CDN para reordenar las tarjetas -->
-  <script src="./Sortable.min.js"></script>
   <style>
-    /* Estilos generales */
+    :root {
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --panel-border: #d8e1ec;
+      --text: #1f2933;
+      --muted: #52606d;
+      --accent: #0f766e;
+      --accent-soft: rgba(15, 118, 110, 0.12);
+      --success: #059669;
+      --success-hover: #047857;
+      --warning: #f59e0b;
+      --warning-hover: #d97706;
+      --danger: #f97373;
+      --danger-hover: #ef4444;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       padding: 0;
       font-family: Arial, sans-serif;
-      background-color: #fafafa;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 28%),
+        radial-gradient(circle at top right, rgba(15, 118, 110, 0.12), transparent 32%),
+        var(--bg);
     }
+
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background-color: #fff;
-      border-bottom: 1px solid #ddd;
-      padding: 10px 20px;
+      gap: 14px;
+      padding: 16px 20px;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--panel-border);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
-    header h1 {
+
+    .header-copy h1 {
+      margin: 0 0 4px;
+      font-size: 22px;
+    }
+
+    .header-copy p {
       margin: 0;
-      font-size: 20px;
+      font-size: 13px;
+      color: var(--muted);
     }
-    /* Estilos para el botón de color salmón */
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .salmon-button,
+    .calibration-button,
+    .record-button,
+    .stop-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 108px;
+      padding: 10px 16px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: bold;
+      text-decoration: none;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease, background-color 0.2s ease;
+    }
+
     .salmon-button {
-      font-size: 14px;
-      padding: 8px 15px;
-      background-color: #FF7F7F;  /* Color salmón */
-      color: white;
-      text-decoration: none;
-      border-radius: 5px;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      background-color: var(--danger);
     }
+
     .salmon-button:hover {
-      background-color: #ff4d4d; /* Un tono más oscuro cuando se pasa el cursor */
+      background-color: var(--danger-hover);
+      transform: translateY(-1px);
     }
-    /* Estilos para el botón de calibración */
+
     .calibration-button {
-      font-size: 14px;
-      padding: 8px 15px;
-      background-color: #007bff;
-      color: white;
-      text-decoration: none;
-      border-radius: 5px;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      background-color: var(--primary);
     }
+
     .calibration-button:hover {
-      background-color: #0056b3;
+      background-color: var(--primary-hover);
+      transform: translateY(-1px);
     }
-    /* Contenedor del gráfico */
+
+    .record-button {
+      background-color: var(--success);
+    }
+
+    .record-button:hover {
+      background-color: var(--success-hover);
+      transform: translateY(-1px);
+    }
+
+    .stop-button {
+      background-color: var(--warning);
+    }
+
+    .stop-button:hover {
+      background-color: var(--warning-hover);
+      transform: translateY(-1px);
+    }
+
+    .salmon-button:disabled,
+    .calibration-button:disabled,
+    .record-button:disabled,
+    .stop-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .dashboard {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .chart-panel,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .chart-panel {
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px 8px;
+    }
+
+    .panel-header h2 {
+      margin: 0 0 4px;
+      font-size: 18px;
+    }
+
+    .panel-header p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .status-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .status-pill.online {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .status-pill.offline {
+      background: rgba(239, 68, 68, 0.12);
+      color: #b91c1c;
+    }
+
+    .status-pill.idle {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .status-pill.recording {
+      background: rgba(245, 158, 11, 0.16);
+      color: #b45309;
+    }
+
+    .status-pill.ready {
+      background: rgba(37, 99, 235, 0.12);
+      color: #1d4ed8;
+    }
+
     .chart-container {
       position: relative;
-      width: 100%;
-      height: 200px;
-      background-color: #fff;
-      border-bottom: 1px solid #ddd;
+      height: 260px;
+      padding: 0 10px 10px;
     }
+
     .chart-container canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
       width: 100%;
       height: 100%;
     }
-    /* Contenedor de tarjetas reordenable */
+
     #cardsContainer {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-      margin: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
     }
+
     .card {
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      padding: 8px;
-      flex: 1 1 200px;
-      max-width: 220px;
-      cursor: move; /* Indica que se puede arrastrar */
+      padding: 14px;
     }
+
     .card h3 {
-      margin: 0;
+      margin: 0 0 10px;
       font-size: 16px;
       text-align: center;
-      margin-bottom: 5px;
     }
+
     .card p {
-      margin: 3px 0;
+      margin: 6px 0;
       font-size: 14px;
       text-align: center;
+    }
+
+    .value {
+      font-weight: bold;
+      color: var(--accent);
+    }
+
+    .capture-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .capture-card-header h3 {
+      margin: 0;
+      text-align: left;
+    }
+
+    @media (max-width: 720px) {
+      header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .header-actions {
+        width: 100%;
+      }
+
+      .salmon-button,
+      .calibration-button,
+      .record-button,
+      .stop-button {
+        flex: 1 1 0;
+      }
+
+      .panel-header {
+        flex-direction: column;
+      }
+
+      .chart-container {
+        height: 230px;
+      }
     }
   </style>
 </head>
 <body>
-  <!-- Encabezado con título y los botones -->
   <header>
-    <h1>Sensor Data Dashboard</h1>
-    <!-- Botón de color salmón antes del botón calibración -->
-    <a href="tara.html" class="salmon-button">TARA</a>
-    <a href="calibrate.html" class="calibration-button">Calibration</a>
+    <div class="header-copy">
+      <h1>Experimento</h1>
+      <p id="versionInfo">Versión 1 — monitoreo en vivo; usa Comenzar y Detener para guardar solo el tramo de interés.</p>
+    </div>
+    <div class="header-actions">
+      <a href="tara.html" class="salmon-button">TARA</a>
+      <a href="calibrate.html" class="calibration-button">Calibration</a>
+      <button id="startRecordingBtn" class="record-button">Comenzar</button>
+      <button id="stopRecordingBtn" class="stop-button" disabled>Detener</button>
+      <button id="saveExperimentBtn" class="calibration-button" disabled>Guardar rango</button>
+    </div>
   </header>
 
-  <!-- Contenedor del gráfico -->
-  <div class="chart-container">
-    <canvas id="liveChart"></canvas>
-  </div>
+  <main class="dashboard">
+    <section class="charts-grid">
+      <article class="chart-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Senal del sensor</h2>
+            <p>ADC crudo y voltaje en tiempo real.</p>
+          </div>
+          <span id="connectionStatus" class="status-pill">Conectando...</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="sensorChart"></canvas>
+        </div>
+      </article>
 
-  <!-- Contenedor de tarjetas reordenable -->
-  <div id="cardsContainer">
-    <div class="card">
-      <h3>ADC Test</h3>
-      <p>Raw ADC: <span id="i2cVal">0</span></p>
-      <p>Voltage: <span id="voltageVal">0.000000</span> V</p>
+      <article class="chart-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Peso y presion</h2>
+            <p>Curvas separadas para que ambas se distingan bien.</p>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="measurementChart"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <div id="cardsContainer">
+      <div class="card">
+        <h3>ADS1115</h3>
+        <p>Raw ADC: <span id="i2cVal" class="value">0</span></p>
+        <p>Voltage: <span id="voltageVal" class="value">0.000000</span> V</p>
+      </div>
+      <div class="card">
+        <h3>Weight Measurements</h3>
+        <p>Weight (Grams): <span id="weightGrams" class="value">0</span> g</p>
+        <p>Weight (Newtons): <span id="weightNewtons" class="value">0</span> N</p>
+      </div>
+      <div class="card">
+        <h3>Pressure Measurement</h3>
+        <p>Pressure (mmHg): <span id="pressureVal" class="value">0</span> mmHg</p>
+      </div>
+      <div class="card">
+        <div class="capture-card-header">
+          <h3>Captura</h3>
+          <span id="recordingState" class="status-pill idle">En espera</span>
+        </div>
+        <p>Muestras del rango: <span id="recordedSamplesCount" class="value">0</span></p>
+        <p>Duración del rango: <span id="recordingDuration" class="value">0.0 s</span></p>
+      </div>
     </div>
-    <div class="card">
-      <h3>Weight Measurements</h3>
-      <p>Weight (Grams): <span id="weightGrams">0</span> g</p>
-      <p>Weight (Newtons): <span id="weightNewtons">0</span> N</p>
-    </div>
-    <div class="card">
-      <h3>Pressure Measurement</h3>
-      <p>Pressure (mmHg): <span id="pressureVal">0</span> mmHg</p>
-    </div>
-  </div>
+  </main>
 
   <script>
-    // Inicializar SortableJS para permitir reordenar las tarjetas
-    Sortable.create(document.getElementById('cardsContainer'), {
-      animation: 150,
-      ghostClass: 'sortable-ghost'
-    });
+    Chart.defaults.global.defaultFontColor = '#334155';
+    Chart.defaults.global.defaultFontFamily = 'Arial, sans-serif';
+    Chart.defaults.global.elements.line.borderWidth = 2;
 
-    // Configuración global de Chart.js
-    Chart.defaults.backgroundColor = 'rgba(0, 0, 0, 0)';
-    Chart.defaults.color = '#333';
+    const MAX_POINTS = 90;
+    const CHART_POINT_INTERVAL_MS = 120;
+    const CSV_HEADER = ['sampleIndex', 'timestampIso', 'elapsedMs', 'rawI2C', 'voltage', 'weightGrams', 'weightNewtons', 'pressureMmHg'];
 
-    // Crear el gráfico con raw ADC y voltaje visibles para pruebas de sensores.
-    const ctx = document.getElementById('liveChart').getContext('2d');
-    const liveChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: 'I2C Raw',
-            data: [],
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'transparent',
-            fill: false,
-            tension: 0.1,
-            pointRadius: 0,
-            hidden: false  // Visible por defecto
-          },
-          {
-            label: 'Voltage (V)',
-            data: [],
-            borderColor: 'rgba(255, 159, 64, 1)',
-            backgroundColor: 'transparent',
-            fill: false,
-            tension: 0.1,
-            pointRadius: 0,
-            yAxisID: 'yVoltage',
-            hidden: false  // Visible por defecto
-          },
-          {
-            label: 'Weight (g)',
-            data: [],
-            borderColor: 'rgba(255, 99, 132, 1)',
-            backgroundColor: 'transparent',
-            fill: false,
-            tension: 0.1,
-            pointRadius: 0,
-            hidden: true  // Oculto por defecto
-          },
-          {
-            label: 'Pressure (mmHg)',
-            data: [],
-            borderColor: 'rgba(54, 162, 235, 1)',
-            backgroundColor: 'transparent',
-            fill: false,
-            tension: 0.1,
-            pointRadius: 0,
-            hidden: true  // Oculto por defecto
-          }
-        ]
-      },
-      options: {
-        animation: false,
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: { display: false },
-          y: { beginAtZero: true },
-          yVoltage: {
-            beginAtZero: true,
-            position: 'right',
-            grid: { drawOnChartArea: false }
-          }
+    const elWeightGrams = document.getElementById('weightGrams');
+    const elWeightNewtons = document.getElementById('weightNewtons');
+    const elPressure = document.getElementById('pressureVal');
+    const elRaw = document.getElementById('i2cVal');
+    const elVoltage = document.getElementById('voltageVal');
+    const elConnectionStatus = document.getElementById('connectionStatus');
+    const elVersionInfo = document.getElementById('versionInfo');
+    const elRecordingState = document.getElementById('recordingState');
+    const elRecordedSamplesCount = document.getElementById('recordedSamplesCount');
+    const elRecordingDuration = document.getElementById('recordingDuration');
+    const startRecordingBtn = document.getElementById('startRecordingBtn');
+    const stopRecordingBtn = document.getElementById('stopRecordingBtn');
+    const saveExperimentBtn = document.getElementById('saveExperimentBtn');
+
+    let currentExperimentVersion = 1;
+    let isRecording = false;
+    let recordingStartedAt = 0;
+    let recordedSamples = [];
+
+    function updateVersionLabel() {
+      let helpText = 'monitoreo en vivo; usa Comenzar y Detener para guardar solo el tramo de interés.';
+
+      if (isRecording) {
+        helpText = 'grabando un rango nuevo. Presiona Detener para cerrar la captura y luego Guardar rango.';
+      } else if (recordedSamples.length > 0) {
+        helpText = 'rango listo para exportar. Puedes Guardar rango o iniciar una captura nueva.';
+      }
+
+      elVersionInfo.textContent = `Versión ${currentExperimentVersion} — ${helpText}`;
+    }
+
+    function formatDuration(ms) {
+      return `${(Math.max(ms, 0) / 1000).toFixed(1)} s`;
+    }
+
+    function getRecordedDurationMs() {
+      if (isRecording) {
+        return performance.now() - recordingStartedAt;
+      }
+
+      if (!recordedSamples.length) {
+        return 0;
+      }
+
+      return recordedSamples[recordedSamples.length - 1].elapsedMs;
+    }
+
+    function refreshRecordingUi() {
+      let stateText = 'En espera';
+      let stateClass = 'idle';
+
+      if (isRecording) {
+        stateText = 'Grabando';
+        stateClass = 'recording';
+      } else if (recordedSamples.length > 0) {
+        stateText = 'Listo';
+        stateClass = 'ready';
+      }
+
+      elRecordingState.textContent = stateText;
+      elRecordingState.className = `status-pill ${stateClass}`;
+      elRecordedSamplesCount.textContent = String(recordedSamples.length);
+      elRecordingDuration.textContent = formatDuration(getRecordedDurationMs());
+
+      startRecordingBtn.disabled = isRecording;
+      stopRecordingBtn.disabled = !isRecording;
+      saveExperimentBtn.disabled = isRecording || recordedSamples.length === 0;
+
+      updateVersionLabel();
+    }
+
+    function startRecording() {
+      if (isRecording) {
+        return;
+      }
+
+      if (recordedSamples.length > 0 && !window.confirm('Ya existe un rango sin guardar. Si comienzas una captura nueva se reemplazara. Continuar?')) {
+        return;
+      }
+
+      isRecording = true;
+      recordingStartedAt = performance.now();
+      recordedSamples = [];
+      refreshRecordingUi();
+    }
+
+    function stopRecording() {
+      if (!isRecording) {
+        return;
+      }
+
+      isRecording = false;
+      refreshRecordingUi();
+    }
+
+    function recordSample(sample) {
+      if (!isRecording) {
+        return;
+      }
+
+      recordedSamples.push({
+        sampleIndex: recordedSamples.length + 1,
+        timestampIso: new Date().toISOString(),
+        elapsedMs: Math.round(performance.now() - recordingStartedAt),
+        rawI2C: sample.rawI2C,
+        voltage: sample.voltage,
+        weightGrams: sample.weightGrams,
+        weightNewtons: sample.weightNewtons,
+        pressureMmHg: sample.pressureMmHg
+      });
+
+      refreshRecordingUi();
+    }
+
+    function buildCsvContent() {
+      const rows = [CSV_HEADER].concat(recordedSamples.map(function(sample) {
+        return [
+          sample.sampleIndex,
+          sample.timestampIso,
+          sample.elapsedMs,
+          sample.rawI2C.toFixed(0),
+          sample.voltage.toFixed(6),
+          sample.weightGrams.toFixed(2),
+          sample.weightNewtons.toFixed(3),
+          sample.pressureMmHg.toFixed(2)
+        ];
+      }));
+
+      return rows
+        .map(function(row) {
+          return row
+            .map(function(value) {
+              return `"${String(value).replace(/\"/g, '""')}"`;
+            })
+            .join(',');
+        })
+        .join('\n');
+    }
+
+    function downloadFile(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadDataUrl(url, filename) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function createRangeChartImage(title, datasets, yAxes) {
+      const labels = recordedSamples.map(function(sample) {
+        return (sample.elapsedMs / 1000).toFixed(2);
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 1600;
+      canvas.height = 900;
+
+      const chart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: datasets
         },
-        plugins: {
+        options: {
+          animation: false,
+          responsive: false,
+          maintainAspectRatio: false,
+          title: {
+            display: true,
+            text: title
+          },
           legend: {
-            labels: { font: { size: 12 } }
+            display: true,
+            labels: {
+              boxWidth: 18,
+              fontSize: 13
+            }
+          },
+          tooltips: {
+            intersect: false,
+            mode: 'index'
+          },
+          elements: {
+            point: {
+              radius: 0
+            },
+            line: {
+              tension: 0.18
+            }
+          },
+          scales: {
+            xAxes: [
+              {
+                display: true,
+                scaleLabel: {
+                  display: true,
+                  labelString: 'Tiempo (s)'
+                }
+              }
+            ],
+            yAxes: yAxes
           }
         }
-      }
-    });
+      });
 
-    // WebSocket: ajustar la dirección y puerto según tu configuración
+      chart.update(0);
+      const url = canvas.toDataURL('image/png');
+      chart.destroy();
+      return url;
+    }
+
+    function saveExperiment() {
+      if (isRecording || recordedSamples.length === 0) {
+        return;
+      }
+
+      const previousText = saveExperimentBtn.textContent;
+      saveExperimentBtn.textContent = 'Guardando...';
+      saveExperimentBtn.disabled = true;
+
+      try {
+        const versionTag = `v${currentExperimentVersion}`;
+
+        downloadFile(buildCsvContent(), `experimento_rango_${versionTag}.csv`, 'text/csv;charset=utf-8;');
+        downloadDataUrl(
+          createRangeChartImage(
+            'Rango grabado - Senal del sensor',
+            [
+              {
+                label: 'ADC ADS1115',
+                data: recordedSamples.map(function(sample) { return sample.rawI2C; }),
+                borderColor: 'rgba(15, 118, 110, 1)',
+                backgroundColor: 'transparent',
+                fill: false,
+                yAxisID: 'yRaw'
+              },
+              {
+                label: 'Voltage (V)',
+                data: recordedSamples.map(function(sample) { return sample.voltage; }),
+                borderColor: 'rgba(249, 115, 22, 1)',
+                backgroundColor: 'transparent',
+                fill: false,
+                yAxisID: 'yVoltage'
+              }
+            ],
+            [
+              {
+                id: 'yRaw',
+                type: 'linear',
+                position: 'left',
+                ticks: {
+                  beginAtZero: false
+                }
+              },
+              {
+                id: 'yVoltage',
+                type: 'linear',
+                position: 'right',
+                ticks: {
+                  beginAtZero: true
+                },
+                gridLines: {
+                  drawOnChartArea: false
+                }
+              }
+            ]
+          ),
+          `sensor_rango_${versionTag}.png`
+        );
+        downloadDataUrl(
+          createRangeChartImage(
+            'Rango grabado - Peso y presion',
+            [
+              {
+                label: 'Weight (g)',
+                data: recordedSamples.map(function(sample) { return sample.weightGrams; }),
+                borderColor: 'rgba(59, 130, 246, 1)',
+                backgroundColor: 'transparent',
+                fill: false,
+                yAxisID: 'yWeight'
+              },
+              {
+                label: 'Pressure (mmHg)',
+                data: recordedSamples.map(function(sample) { return sample.pressureMmHg; }),
+                borderColor: 'rgba(220, 38, 38, 1)',
+                backgroundColor: 'transparent',
+                fill: false,
+                yAxisID: 'yPressure'
+              }
+            ],
+            [
+              {
+                id: 'yWeight',
+                type: 'linear',
+                position: 'left',
+                ticks: {
+                  beginAtZero: true
+                }
+              },
+              {
+                id: 'yPressure',
+                type: 'linear',
+                position: 'right',
+                ticks: {
+                  beginAtZero: true
+                },
+                gridLines: {
+                  drawOnChartArea: false
+                }
+              }
+            ]
+          ),
+          `peso_presion_rango_${versionTag}.png`
+        );
+
+        currentExperimentVersion += 1;
+        recordedSamples = [];
+      } finally {
+        saveExperimentBtn.textContent = previousText;
+        refreshRecordingUi();
+      }
+    }
+
+    startRecordingBtn.addEventListener('click', startRecording);
+    stopRecordingBtn.addEventListener('click', stopRecording);
+    saveExperimentBtn.addEventListener('click', saveExperiment);
+
+    function createLineChart(canvasId, datasets, yAxes) {
+      return new Chart(document.getElementById(canvasId).getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: datasets
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          legend: {
+            display: true,
+            labels: {
+              boxWidth: 18,
+              fontSize: 12
+            }
+          },
+          tooltips: {
+            intersect: false,
+            mode: 'index'
+          },
+          hover: {
+            intersect: false,
+            mode: 'nearest'
+          },
+          elements: {
+            point: {
+              radius: 0,
+              hoverRadius: 3
+            },
+            line: {
+              tension: 0.18
+            }
+          },
+          scales: {
+            xAxes: [
+              {
+                display: false
+              }
+            ],
+            yAxes: yAxes
+          }
+        }
+      });
+    }
+
+    const sensorChart = createLineChart(
+      'sensorChart',
+      [
+        {
+          label: 'ADC ADS1115',
+          data: [],
+          borderColor: 'rgba(15, 118, 110, 1)',
+          backgroundColor: 'transparent',
+          fill: false,
+          yAxisID: 'yRaw'
+        },
+        {
+          label: 'Voltage (V)',
+          data: [],
+          borderColor: 'rgba(249, 115, 22, 1)',
+          backgroundColor: 'transparent',
+          fill: false,
+          yAxisID: 'yVoltage'
+        }
+      ],
+      [
+        {
+          id: 'yRaw',
+          type: 'linear',
+          position: 'left',
+          ticks: {
+            beginAtZero: false
+          }
+        },
+        {
+          id: 'yVoltage',
+          type: 'linear',
+          position: 'right',
+          ticks: {
+            beginAtZero: true
+          },
+          gridLines: {
+            drawOnChartArea: false
+          }
+        }
+      ]
+    );
+
+    const measurementChart = createLineChart(
+      'measurementChart',
+      [
+        {
+          label: 'Weight (g)',
+          data: [],
+          borderColor: 'rgba(59, 130, 246, 1)',
+          backgroundColor: 'transparent',
+          fill: false,
+          yAxisID: 'yWeight'
+        },
+        {
+          label: 'Pressure (mmHg)',
+          data: [],
+          borderColor: 'rgba(220, 38, 38, 1)',
+          backgroundColor: 'transparent',
+          fill: false,
+          yAxisID: 'yPressure'
+        }
+      ],
+      [
+        {
+          id: 'yWeight',
+          type: 'linear',
+          position: 'left',
+          ticks: {
+            beginAtZero: true
+          }
+        },
+        {
+          id: 'yPressure',
+          type: 'linear',
+          position: 'right',
+          ticks: {
+            beginAtZero: true
+          },
+          gridLines: {
+            drawOnChartArea: false
+          }
+        }
+      ]
+    );
+
+    function trimChart(chart) {
+      if (chart.data.labels.length <= MAX_POINTS) {
+        return;
+      }
+
+      chart.data.labels.shift();
+      chart.data.datasets.forEach(function(dataset) {
+        dataset.data.shift();
+      });
+    }
+
+    function appendChartPoint(chart, label, values) {
+      chart.data.labels.push(label);
+      chart.data.datasets.forEach(function(dataset, index) {
+        dataset.data.push(values[index]);
+      });
+      trimChart(chart);
+    }
+
+    function setConnectionStatus(text, className) {
+      elConnectionStatus.textContent = text;
+      elConnectionStatus.className = 'status-pill ' + className;
+    }
+
     let ws;
+    let pendingData = null;
+    let frameRequested = false;
+    let lastChartPointAt = 0;
+    let sampleIndex = 0;
+
     function initWebSocket() {
       ws = new WebSocket('ws://' + window.location.hostname + ':81/');
-      ws.onopen = () => {
+
+      ws.onopen = function() {
         console.log('WebSocket conectado');
+        setConnectionStatus('En linea', 'online');
       };
-      ws.onmessage = (event) => {
+
+      ws.onmessage = function(event) {
         try {
-          const data = JSON.parse(event.data);
-          updateDashboard(data);
+          pendingData = JSON.parse(event.data);
+          if (!frameRequested) {
+            frameRequested = true;
+            requestAnimationFrame(renderLatestData);
+          }
         } catch (error) {
           console.error('Error al parsear JSON:', error);
         }
       };
-      ws.onclose = () => {
+
+      ws.onclose = function() {
         console.log('WebSocket desconectado, reconectando en 2 segundos...');
+        setConnectionStatus('Reconectando...', 'offline');
         setTimeout(initWebSocket, 2000);
       };
-    }
-    initWebSocket();
 
-    // Función para actualizar el dashboard
-    function updateDashboard(data) {
+      ws.onerror = function() {
+        setConnectionStatus('Error de enlace', 'offline');
+      };
+    }
+
+    function renderLatestData() {
+      frameRequested = false;
+
+      if (!pendingData) {
+        return;
+      }
+
+      const data = pendingData;
+      pendingData = null;
+
       const rawI2C = Number(data.rawI2C ?? 0);
       const voltage = Number(data.voltage ?? 0);
       const weight = Number(data.weight ?? 0);
       const newtons = Number(data.newtons ?? 0);
       const pressure = Number(data.pressure ?? 0);
 
-      // Actualizar tarjetas
-      document.getElementById('weightGrams').textContent = weight.toFixed(2);
-      document.getElementById('weightNewtons').textContent = newtons.toFixed(2);
-      document.getElementById('pressureVal').textContent = pressure.toFixed(2);
-      document.getElementById('i2cVal').textContent = rawI2C;
-      document.getElementById('voltageVal').textContent = voltage.toFixed(6);
+      elWeightGrams.textContent = weight.toFixed(2);
+      elWeightNewtons.textContent = newtons.toFixed(3);
+      elPressure.textContent = pressure.toFixed(2);
+      elRaw.textContent = rawI2C.toFixed(0);
+      elVoltage.textContent = voltage.toFixed(6);
 
-      // Añadir etiquetas y datos al gráfico
-      const now = new Date().toLocaleTimeString();
+      recordSample({
+        rawI2C: rawI2C,
+        voltage: voltage,
+        weightGrams: weight,
+        weightNewtons: newtons,
+        pressureMmHg: pressure
+      });
 
-      liveChart.data.labels.push(now);
-      liveChart.data.datasets[0].data.push(rawI2C);
-      liveChart.data.datasets[1].data.push(voltage);
-      liveChart.data.datasets[2].data.push(weight);
-      liveChart.data.datasets[3].data.push(pressure);
+      const now = Date.now();
+      if (now - lastChartPointAt >= CHART_POINT_INTERVAL_MS) {
+        lastChartPointAt = now;
+        const label = sampleIndex++;
 
-      // Limitar la cantidad de puntos a 100 para no saturar el gráfico
-      const maxPoints = 100;
-      if (liveChart.data.labels.length > maxPoints) {
-        liveChart.data.labels.shift();
-        liveChart.data.datasets.forEach(ds => ds.data.shift());
+        appendChartPoint(sensorChart, label, [rawI2C, voltage]);
+        appendChartPoint(measurementChart, label, [weight, pressure]);
+
+        sensorChart.update(0);
+        measurementChart.update(0);
       }
-
-      liveChart.update('none');
     }
+
+    refreshRecordingUi();
+    initWebSocket();
   </script>
 </body>
 </html>

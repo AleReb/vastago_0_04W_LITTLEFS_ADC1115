@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #line 1 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
-t#include <Wire.h>  // Para I2C/SMBus
+#include <Wire.h>  // Para I2C/SMBus
+#include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 #include <LittleFS.h>  // Para almacenamiento de archivos HTML y JS
@@ -26,26 +27,22 @@ Adafruit_ADS1115 ads;
 // Objeto para la pantalla OLED
 U8G2_SH1106_128X32_VISIONOX_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
-// Variables para los valores promediados
-long i2cAvg = 0;  // Promedio de lectura I2C / ADC
-const int SAMPLE_WINDOW = 8;  // Ventana corta para ver cambios rapidos en la web
-long i2cSum = 0;
-float weightSum = 0;
-float pressureSum = 0;
-int sampleCount = 0;
-float weightAvgImGR = 0;
-float pressureAvg = 0;
-float promNewton = 0;
-float voltageAvg = 0;
-float voltageSum = 0;
+// Valores instantaneos del ADS1115. Sin promedio para bajar latencia.
+int16_t adcRaw = 0;
+float adcVoltage = 0;
+float weightGrams = 0;
+float pressureMmHg = 0;
+float weightNewtons = 0;
+bool adsReady = false;
 
 // Servidor web y WebSocket
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 ////////////////
-// Variable para controlar el intervalo de 100 ms
-unsigned long lastUpdate = 0;
-int delaytime = 500;
+unsigned long lastDisplayUpdate = 0;
+unsigned long lastWebUpdate = 0;
+const unsigned long DISPLAY_UPDATE_INTERVAL = 500;
+const unsigned long WEB_UPDATE_INTERVAL = 50;
 unsigned long lastSdLog = 0;
 const unsigned long SD_LOG_INTERVAL = 1000;
 bool sdReady = false;
@@ -73,28 +70,28 @@ CalibrationPoint calibrationPoints[] = {
 long taraValue = 0;
 
 // Función para aplicar la tara
-#line 74 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+#line 71 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
 void applyTara();
-#line 84 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+#line 81 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
 String getContentType(String filename);
-#line 101 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+#line 98 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
 bool handleFileRead(String path);
-#line 114 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+#line 112 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
 void setup();
-#line 222 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
-float calculateWeightNewton(long avgI2CData);
-#line 250 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
-float calculateWeightGrams(long avgI2CData);
-#line 257 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+#line 221 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+float calculateWeightNewton(long adcData);
+#line 249 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+float calculateWeightGrams(long adcData);
+#line 254 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
 float convertGramsToMMHg(float weightInGrams);
-#line 273 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+#line 259 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
 void loop();
-#line 382 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+#line 344 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
-#line 74 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
+#line 71 "/data/home/ale/dropbox/clases_universidad/vastago_0_04W_LITTLEFS_ADC1115/vastago_0_04W_LITTLEFS_ADC1115.ino"
 void applyTara() {
-  // Guardar el valor de la lectura actual de i2cAvg como tara
-  taraValue = i2cAvg;  
+  // Guardar la lectura instantanea actual como tara.
+  taraValue = adcRaw;
 
   // Imprimir el valor de tara por el puerto serial
   Serial.print("Tara activada. Valor de tara: ");
@@ -125,6 +122,7 @@ bool handleFileRead(String path) {
   String contentType = getContentType(path);
   if (LittleFS.exists(path)) {
     File file = LittleFS.open(path, "r");
+    server.sendHeader("Cache-Control", path.endsWith(".html") ? "no-cache" : "public, max-age=604800");
     server.streamFile(file, contentType);
     file.close();
     return true;
@@ -191,6 +189,7 @@ void setup() {
     Serial.println("Fallo al inicializar ADS!");
   } else {
     ads.setDataRate(RATE_ADS1115_860SPS);
+    adsReady = true;
     Serial.println("ADS1115 inicializado correctamente.");
   }
 
@@ -204,7 +203,7 @@ void setup() {
     File logFile = SD.open("/datalog.csv", FILE_APPEND);
     if (logFile) {
         if (logFile.size() == 0) {
-            logFile.println("ADC_Promedio,Voltaje,Peso_Newtons,Peso_Gramos,Presion_mmHg");
+            logFile.println("ADC,Voltaje,Peso_Newtons,Peso_Gramos,Presion_mmHg");
         }
         logFile.close();
     } else {
@@ -239,56 +238,43 @@ void setup() {
   webSocket.onEvent(webSocketEvent);
 }
 
-// Función que calcula el peso en newtons a partir del promedio de datos I2C/ADC usando interpolación lineal
-float calculateWeightNewton(long avgI2CData) {
-  // Si el valor de tara está configurado, ajustamos la medición
+// Función que calcula el peso en newtons a partir del dato del ADS1115 usando interpolación lineal
+float calculateWeightNewton(long adcData) {
+  // Si hay tara, conservamos el cero de calibracion y restamos el offset actual.
   if (taraValue != 0) {
-    avgI2CData -= taraValue;  // Restamos el valor de tara de la lectura actual
+    adcData = adcData - taraValue + calibrationPoints[0].i2cData;
   }
 
   int numPoints = sizeof(calibrationPoints) / sizeof(CalibrationPoint);
 
   // Si el dato está por encima del último punto, realiza extrapolación
-  if (avgI2CData > calibrationPoints[numPoints - 1].i2cData) {
+  if (adcData > calibrationPoints[numPoints - 1].i2cData) {
     float slope = (calibrationPoints[numPoints - 1].weightNewtons - calibrationPoints[numPoints - 2].weightNewtons) /
                   (calibrationPoints[numPoints - 1].i2cData - calibrationPoints[numPoints - 2].i2cData);
-    return calibrationPoints[numPoints - 1].weightNewtons + slope * (avgI2CData - calibrationPoints[numPoints - 1].i2cData);
+    return calibrationPoints[numPoints - 1].weightNewtons + slope * (adcData - calibrationPoints[numPoints - 1].i2cData);
   }
 
   // Interpolación lineal entre puntos para valores dentro del rango
   for (int i = 0; i < numPoints - 1; i++) {
-    if (avgI2CData >= calibrationPoints[i].i2cData && avgI2CData <= calibrationPoints[i + 1].i2cData) {
+    if (adcData >= calibrationPoints[i].i2cData && adcData <= calibrationPoints[i + 1].i2cData) {
       float slope = (calibrationPoints[i + 1].weightNewtons - calibrationPoints[i].weightNewtons) /
                     (calibrationPoints[i + 1].i2cData - calibrationPoints[i].i2cData);
-      return calibrationPoints[i].weightNewtons + slope * (avgI2CData - calibrationPoints[i].i2cData);
+      return calibrationPoints[i].weightNewtons + slope * (adcData - calibrationPoints[i].i2cData);
     }
   }
 
   return 0.0;  // Retorna 0 si no se encuentra el rango
 }
 
-// Función que calcula el peso en gramos a partir del promedio
-float calculateWeightGrams(long avgI2CData) {
-  float newtons = calculateWeightNewton(avgI2CData);
-  float grams = newtons * 100.0;  // Convertir de newtons a gramos
-  return grams;
+// Función que calcula el peso en gramos a partir del ADS1115
+float calculateWeightGrams(long adcData) {
+  return calculateWeightNewton(adcData) * 100.0;
 }
 
 // Función para convertir gramos a presión en mmHg
 float convertGramsToMMHg(float weightInGrams) {
-  // Convertir gramos a Newtons (1 g = 9.81 m/s^2 -> 9.81 N/kg)
-  float weightInNewtons = weightInGrams * 9.81 / 1000.0;
-
-  // Área del sensor (radio = 4 mm, ya que el diámetro es de 8 mm)
-  float radius = 4.0;                        // mm
-  float area = 3.14159 * (radius * radius);  // mm^2
-  // Convertir área a metros cuadrados
-  area = area * 1e-6;  // Convertir mm^2 a m^2
-  // Calcular la presión en Pascales
-  float pressurePascals = weightInNewtons / area;  // N/m^2 = Pa
-  // Convertir Pascales a mmHg
-  float pressureMMHg = pressurePascals * 0.00750062;  // Pa a mmHg
-  return pressureMMHg;
+  const float gramsToMmHg = (9.81f / 1000.0f) / (3.14159f * 4.0f * 4.0f * 1e-6f) * 0.00750062f;
+  return weightInGrams * gramsToMmHg;
 }
 
 void loop() {
@@ -303,79 +289,55 @@ void loop() {
     }
   }
 
-  // Obtener los datos del sensor ADS1115 (Pin A0)
-  short i2cData = ads.readADC_SingleEnded(0);
-  float voltage = ads.computeVolts(i2cData);
-  float weightGrams = calculateWeightGrams(i2cData);
+  if (adsReady) {
+    adcRaw = ads.readADC_SingleEnded(0);
+    adcVoltage = ads.computeVolts(adcRaw);
+    weightNewtons = calculateWeightNewton(adcRaw);
+    weightGrams = weightNewtons * 100.0f;
+    pressureMmHg = convertGramsToMMHg(weightGrams);
+  }
 
-  // Sumar las lecturas para calcular el promedio
-  i2cSum += i2cData;
-  voltageSum += voltage;
-  weightSum += weightGrams;
-  pressureSum += convertGramsToMMHg(weightGrams);  // Calcular la presión promedio con el peso
-  sampleCount++;
+  unsigned long currentMillis = millis();
 
-  // Si se alcanzan el número de muestras, calculamos los promedios
-  if (sampleCount >= SAMPLE_WINDOW) {
-    i2cAvg = i2cSum / SAMPLE_WINDOW;
-    voltageAvg = voltageSum / SAMPLE_WINDOW;
-    weightAvgImGR = weightSum / SAMPLE_WINDOW;
-    pressureAvg = pressureSum / SAMPLE_WINDOW;
-    promNewton = calculateWeightNewton(i2cAvg);
-    
-    // Enviar los datos promedio por WebSocket
-    String data = "{\"weight\": " + String(weightAvgImGR) +
-                  ", \"newtons\": " + String(promNewton) +
-                  ", \"pressure\": " + String(pressureAvg) +
-                  ", \"voltage\": " + String(voltageAvg, 6) +
-                  ", \"rawI2C\": " + String(i2cAvg) + "}";
-
+  if (currentMillis - lastWebUpdate >= WEB_UPDATE_INTERVAL) {
+    lastWebUpdate = currentMillis;
+    char data[128];
+    snprintf(data, sizeof(data),
+             "{\"weight\":%.2f,\"newtons\":%.3f,\"pressure\":%.2f,\"voltage\":%.6f,\"rawI2C\":%d}",
+             weightGrams, weightNewtons, pressureMmHg, adcVoltage, adcRaw);
     webSocket.broadcastTXT(data);
+  }
 
-    // Guardar en la tarjeta SD a menor frecuencia para no frenar la lectura/web.
-    unsigned long now = millis();
-    if (sdReady && now - lastSdLog >= SD_LOG_INTERVAL) {
-        lastSdLog = now;
-        File logFile = SD.open("/datalog.csv", FILE_APPEND);
-        if (logFile) {
-            logFile.print(i2cAvg);
-            logFile.print(",");
-            logFile.print(voltageAvg, 6);
-            logFile.print(",");
-            logFile.print(promNewton);
-            logFile.print(",");
-            logFile.print(weightAvgImGR);
-            logFile.print(",");
-            logFile.println(pressureAvg);
-            logFile.close();
-        }
+  if (sdReady && currentMillis - lastSdLog >= SD_LOG_INTERVAL) {
+    lastSdLog = currentMillis;
+    File logFile = SD.open("/datalog.csv", FILE_APPEND);
+    if (logFile) {
+      logFile.print(adcRaw);
+      logFile.print(",");
+      logFile.print(adcVoltage, 6);
+      logFile.print(",");
+      logFile.print(weightNewtons);
+      logFile.print(",");
+      logFile.print(weightGrams);
+      logFile.print(",");
+      logFile.println(pressureMmHg);
+      logFile.close();
     }
-
-    // Reiniciar acumuladores y contador para la siguiente ventana de muestras
-    i2cSum = 0;
-    voltageSum = 0;
-    weightSum = 0;
-    pressureSum = 0;
-    sampleCount = 0;
   }
   
-  unsigned long currentMillis = millis();
-  // Se ejecuta cada x ms
-  if (currentMillis - lastUpdate >= delaytime) {
-    lastUpdate = currentMillis;
+  if (currentMillis - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
+    lastDisplayUpdate = currentMillis;
     // Muestra los datos crudos y convertidos
     Serial.print("Raw ADC Data: ");
-    Serial.print(i2cData);
-    Serial.print(" PROM ADC Data: ");
-    Serial.print(i2cAvg);
+    Serial.print(adcRaw);
     Serial.print(" Voltage: ");
-    Serial.print(voltageAvg, 6);
+    Serial.print(adcVoltage, 6);
     Serial.print(" Weight in Newtons: ");
-    Serial.print(promNewton);
+    Serial.print(weightNewtons);
     Serial.print(" Weight in Grams: ");
-    Serial.print(weightAvgImGR);
+    Serial.print(weightGrams);
     Serial.print(" Pressure in mmHg: ");
-    Serial.println(pressureAvg);
+    Serial.println(pressureMmHg);
 
     // Actualizar pantalla OLED
     u8g2.clearBuffer();
@@ -391,9 +353,9 @@ void loop() {
     
     u8g2.setCursor(0, 25);
     u8g2.print("A0 Raw:");
-    u8g2.print(i2cData);
+    u8g2.print(adcRaw);
     u8g2.print(" (");
-    u8g2.print(voltage, 3);
+    u8g2.print(adcVoltage, 3);
     u8g2.print("V)");
     u8g2.sendBuffer();
   }
