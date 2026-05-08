@@ -70,6 +70,22 @@
       flex-wrap: wrap;
     }
 
+    .experiment-name-input {
+      min-width: 190px;
+      padding: 10px 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      color: var(--text);
+      font-size: 14px;
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+
+    .experiment-name-input:focus {
+      outline: 2px solid rgba(37, 99, 235, 0.28);
+      outline-offset: 2px;
+    }
+
     .salmon-button,
     .calibration-button,
     .record-button,
@@ -279,7 +295,8 @@
       .salmon-button,
       .calibration-button,
       .record-button,
-      .stop-button {
+      .stop-button,
+      .experiment-name-input {
         flex: 1 1 0;
       }
 
@@ -300,6 +317,7 @@
       <p id="versionInfo">Versión 1 — monitoreo en vivo; usa Comenzar y Detener para guardar solo el tramo de interés.</p>
     </div>
     <div class="header-actions">
+      <input id="experimentNameInput" class="experiment-name-input" type="text" placeholder="Nombre experimento" />
       <a href="tara.html" class="salmon-button">TARA</a>
       <a href="calibrate.html" class="calibration-button">Calibration</a>
       <button id="startRecordingBtn" class="record-button">Comenzar</button>
@@ -334,6 +352,19 @@
           <canvas id="measurementChart"></canvas>
         </div>
       </article>
+
+      <article class="chart-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Temperatura y humedad</h2>
+            <p>Lectura ambiente del SHT40 en tiempo real.</p>
+          </div>
+          <span id="shtStatus" class="status-pill idle">SHT40</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="environmentChart"></canvas>
+        </div>
+      </article>
     </section>
 
     <div id="cardsContainer">
@@ -350,6 +381,11 @@
       <div class="card">
         <h3>Pressure Measurement</h3>
         <p>Pressure (mmHg): <span id="pressureVal" class="value">0</span> mmHg</p>
+      </div>
+      <div class="card">
+        <h3>SHT40</h3>
+        <p>Temperature: <span id="temperatureVal" class="value">--</span> C</p>
+        <p>Humidity: <span id="humidityVal" class="value">--</span> %RH</p>
       </div>
       <div class="card">
         <div class="capture-card-header">
@@ -369,18 +405,22 @@
 
     const MAX_POINTS = 90;
     const CHART_POINT_INTERVAL_MS = 120;
-    const CSV_HEADER = ['sampleIndex', 'timestampIso', 'elapsedMs', 'rawI2C', 'voltage', 'weightGrams', 'weightNewtons', 'pressureMmHg'];
+    const CSV_HEADER = ['sampleIndex', 'timestampIso', 'elapsedMs', 'rawI2C', 'voltage', 'weightGrams', 'weightNewtons', 'pressureMmHg', 'temperatureC', 'humidityRH'];
 
     const elWeightGrams = document.getElementById('weightGrams');
     const elWeightNewtons = document.getElementById('weightNewtons');
     const elPressure = document.getElementById('pressureVal');
     const elRaw = document.getElementById('i2cVal');
     const elVoltage = document.getElementById('voltageVal');
+    const elTemperature = document.getElementById('temperatureVal');
+    const elHumidity = document.getElementById('humidityVal');
+    const elShtStatus = document.getElementById('shtStatus');
     const elConnectionStatus = document.getElementById('connectionStatus');
     const elVersionInfo = document.getElementById('versionInfo');
     const elRecordingState = document.getElementById('recordingState');
     const elRecordedSamplesCount = document.getElementById('recordedSamplesCount');
     const elRecordingDuration = document.getElementById('recordingDuration');
+    const experimentNameInput = document.getElementById('experimentNameInput');
     const startRecordingBtn = document.getElementById('startRecordingBtn');
     const stopRecordingBtn = document.getElementById('stopRecordingBtn');
     const saveExperimentBtn = document.getElementById('saveExperimentBtn');
@@ -479,10 +519,16 @@
         voltage: sample.voltage,
         weightGrams: sample.weightGrams,
         weightNewtons: sample.weightNewtons,
-        pressureMmHg: sample.pressureMmHg
+        pressureMmHg: sample.pressureMmHg,
+        temperatureC: sample.temperatureC,
+        humidityRH: sample.humidityRH
       });
 
       refreshRecordingUi();
+    }
+
+    function formatCsvNumber(value, decimals) {
+      return Number.isFinite(value) ? value.toFixed(decimals) : '';
     }
 
     function buildCsvContent() {
@@ -495,7 +541,9 @@
           sample.voltage.toFixed(6),
           sample.weightGrams.toFixed(2),
           sample.weightNewtons.toFixed(3),
-          sample.pressureMmHg.toFixed(2)
+          sample.pressureMmHg.toFixed(2),
+          formatCsvNumber(sample.temperatureC, 2),
+          formatCsvNumber(sample.humidityRH, 2)
         ];
       }));
 
@@ -529,6 +577,21 @@
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+
+    function slugifyFilename(value) {
+      return value
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    }
+
+    function getExperimentBaseName() {
+      const customName = slugifyFilename(experimentNameInput.value);
+      return customName || `experimento${currentExperimentVersion}`;
     }
 
     function createRangeChartImage(title, datasets, yAxes) {
@@ -605,11 +668,13 @@
 
       try {
         const versionTag = `v${currentExperimentVersion}`;
+        const experimentBaseName = getExperimentBaseName();
+        const experimentTitle = experimentNameInput.value.trim() || `Experimento ${currentExperimentVersion}`;
 
-        downloadFile(buildCsvContent(), `experimento_rango_${versionTag}.csv`, 'text/csv;charset=utf-8;');
+        downloadFile(buildCsvContent(), `${experimentBaseName}_rango_${versionTag}.csv`, 'text/csv;charset=utf-8;');
         downloadDataUrl(
           createRangeChartImage(
-            'Rango grabado - Senal del sensor',
+            `${experimentTitle} - Senal del sensor`,
             [
               {
                 label: 'ADC ADS1115',
@@ -650,11 +715,11 @@
               }
             ]
           ),
-          `sensor_rango_${versionTag}.png`
+          `${experimentBaseName}_sensor_${versionTag}.png`
         );
         downloadDataUrl(
           createRangeChartImage(
-            'Rango grabado - Peso y presion',
+            `${experimentTitle} - Peso y presion`,
             [
               {
                 label: 'Weight (g)',
@@ -695,7 +760,52 @@
               }
             ]
           ),
-          `peso_presion_rango_${versionTag}.png`
+          `${experimentBaseName}_peso_presion_${versionTag}.png`
+        );
+        downloadDataUrl(
+          createRangeChartImage(
+            `${experimentTitle} - Temperatura y humedad`,
+            [
+              {
+                label: 'Temperature (C)',
+                data: recordedSamples.map(function(sample) { return sample.temperatureC; }),
+                borderColor: 'rgba(124, 58, 237, 1)',
+                backgroundColor: 'transparent',
+                fill: false,
+                yAxisID: 'yTemperature'
+              },
+              {
+                label: 'Humidity (%RH)',
+                data: recordedSamples.map(function(sample) { return sample.humidityRH; }),
+                borderColor: 'rgba(14, 165, 233, 1)',
+                backgroundColor: 'transparent',
+                fill: false,
+                yAxisID: 'yHumidity'
+              }
+            ],
+            [
+              {
+                id: 'yTemperature',
+                type: 'linear',
+                position: 'left',
+                ticks: {
+                  beginAtZero: false
+                }
+              },
+              {
+                id: 'yHumidity',
+                type: 'linear',
+                position: 'right',
+                ticks: {
+                  beginAtZero: true
+                },
+                gridLines: {
+                  drawOnChartArea: false
+                }
+              }
+            ]
+          ),
+          `${experimentBaseName}_temperatura_humedad_${versionTag}.png`
         );
 
         currentExperimentVersion += 1;
@@ -843,6 +953,49 @@
       ]
     );
 
+    const environmentChart = createLineChart(
+      'environmentChart',
+      [
+        {
+          label: 'Temperature (C)',
+          data: [],
+          borderColor: 'rgba(124, 58, 237, 1)',
+          backgroundColor: 'transparent',
+          fill: false,
+          yAxisID: 'yTemperature'
+        },
+        {
+          label: 'Humidity (%RH)',
+          data: [],
+          borderColor: 'rgba(14, 165, 233, 1)',
+          backgroundColor: 'transparent',
+          fill: false,
+          yAxisID: 'yHumidity'
+        }
+      ],
+      [
+        {
+          id: 'yTemperature',
+          type: 'linear',
+          position: 'left',
+          ticks: {
+            beginAtZero: false
+          }
+        },
+        {
+          id: 'yHumidity',
+          type: 'linear',
+          position: 'right',
+          ticks: {
+            beginAtZero: true
+          },
+          gridLines: {
+            drawOnChartArea: false
+          }
+        }
+      ]
+    );
+
     function trimChart(chart) {
       if (chart.data.labels.length <= MAX_POINTS) {
         return;
@@ -919,19 +1072,29 @@
       const weight = Number(data.weight ?? 0);
       const newtons = Number(data.newtons ?? 0);
       const pressure = Number(data.pressure ?? 0);
+      const temperatureC = data.temperatureC === null ? null : Number(data.temperatureC);
+      const humidityRH = data.humidityRH === null ? null : Number(data.humidityRH);
+      const hasTemperature = Number.isFinite(temperatureC);
+      const hasHumidity = Number.isFinite(humidityRH);
 
       elWeightGrams.textContent = weight.toFixed(2);
       elWeightNewtons.textContent = newtons.toFixed(3);
       elPressure.textContent = pressure.toFixed(2);
       elRaw.textContent = rawI2C.toFixed(0);
       elVoltage.textContent = voltage.toFixed(6);
+      elTemperature.textContent = hasTemperature ? temperatureC.toFixed(2) : '--';
+      elHumidity.textContent = hasHumidity ? humidityRH.toFixed(2) : '--';
+      elShtStatus.textContent = data.shtReady ? 'En linea' : 'Sin SHT40';
+      elShtStatus.className = data.shtReady ? 'status-pill online' : 'status-pill offline';
 
       recordSample({
         rawI2C: rawI2C,
         voltage: voltage,
         weightGrams: weight,
         weightNewtons: newtons,
-        pressureMmHg: pressure
+        pressureMmHg: pressure,
+        temperatureC: hasTemperature ? temperatureC : null,
+        humidityRH: hasHumidity ? humidityRH : null
       });
 
       const now = Date.now();
@@ -941,9 +1104,14 @@
 
         appendChartPoint(sensorChart, label, [rawI2C, voltage]);
         appendChartPoint(measurementChart, label, [weight, pressure]);
+        appendChartPoint(environmentChart, label, [
+          hasTemperature ? temperatureC : null,
+          hasHumidity ? humidityRH : null
+        ]);
 
         sensorChart.update(0);
         measurementChart.update(0);
+        environmentChart.update(0);
       }
     }
 

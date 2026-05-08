@@ -6,6 +6,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <Adafruit_ADS1X15.h>
+#include "Adafruit_SHT4x.h"
 #include <U8g2lib.h>
 
 String version = "0.04WLFS";
@@ -22,6 +23,9 @@ const char* password = "aiC#aim3Eas7gae";
 // Objeto para el ADC1115
 Adafruit_ADS1115 ads;
 
+// Objeto para el sensor de temperatura y humedad SHT40/SHT4x
+Adafruit_SHT4x sht4 = Adafruit_SHT4x();
+
 // Objeto para la pantalla OLED
 U8G2_SH1106_128X32_VISIONOX_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
@@ -32,6 +36,9 @@ float weightGrams = 0;
 float pressureMmHg = 0;
 float weightNewtons = 0;
 bool adsReady = false;
+float temperatureC = NAN;
+float humidityRH = NAN;
+bool shtReady = false;
 
 // Servidor web y WebSocket
 WebServer server(80);
@@ -42,7 +49,9 @@ unsigned long lastWebUpdate = 0;
 const unsigned long DISPLAY_UPDATE_INTERVAL = 500;
 const unsigned long WEB_UPDATE_INTERVAL = 50;
 unsigned long lastSdLog = 0;
+unsigned long lastShtRead = 0;
 const unsigned long SD_LOG_INTERVAL = 1000;
+const unsigned long SHT_READ_INTERVAL = 1000;
 bool sdReady = false;
 
 // Puntos de calibración para los datos de I2C y los pesos en Newtons
@@ -172,6 +181,16 @@ void setup() {
     Serial.println("ADS1115 inicializado correctamente.");
   }
 
+  // Inicializar SHT40/SHT4x en el mismo bus I2C
+  if (!sht4.begin()) {
+    Serial.println("Fallo al inicializar SHT40/SHT4x!");
+  } else {
+    sht4.setPrecision(SHT4X_HIGH_PRECISION);
+    sht4.setHeater(SHT4X_NO_HEATER);
+    shtReady = true;
+    Serial.println("SHT40/SHT4x inicializado correctamente.");
+  }
+
   // Inicializar SPI para Tarjeta SD
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
   if (!SD.begin(SD_CS)) {
@@ -182,7 +201,7 @@ void setup() {
     File logFile = SD.open("/datalog.csv", FILE_APPEND);
     if (logFile) {
         if (logFile.size() == 0) {
-            logFile.println("ADC,Voltaje,Peso_Newtons,Peso_Gramos,Presion_mmHg");
+            logFile.println("ADC,Voltaje,Peso_Newtons,Peso_Gramos,Presion_mmHg,Temperatura_C,Humedad_RH");
         }
         logFile.close();
     } else {
@@ -278,12 +297,39 @@ void loop() {
 
   unsigned long currentMillis = millis();
 
+  if (shtReady && currentMillis - lastShtRead >= SHT_READ_INTERVAL) {
+    lastShtRead = currentMillis;
+    sensors_event_t humidity;
+    sensors_event_t temp;
+    if (sht4.getEvent(&humidity, &temp)) {
+      temperatureC = temp.temperature;
+      humidityRH = humidity.relative_humidity;
+    } else {
+      temperatureC = NAN;
+      humidityRH = NAN;
+      Serial.println("Error leyendo SHT40/SHT4x");
+    }
+  }
+
   if (currentMillis - lastWebUpdate >= WEB_UPDATE_INTERVAL) {
     lastWebUpdate = currentMillis;
-    char data[128];
+    char temperatureText[16];
+    char humidityText[16];
+    if (isnan(temperatureC)) {
+      snprintf(temperatureText, sizeof(temperatureText), "null");
+    } else {
+      snprintf(temperatureText, sizeof(temperatureText), "%.2f", temperatureC);
+    }
+    if (isnan(humidityRH)) {
+      snprintf(humidityText, sizeof(humidityText), "null");
+    } else {
+      snprintf(humidityText, sizeof(humidityText), "%.2f", humidityRH);
+    }
+    char data[192];
     snprintf(data, sizeof(data),
-             "{\"weight\":%.2f,\"newtons\":%.3f,\"pressure\":%.2f,\"voltage\":%.6f,\"rawI2C\":%d}",
-             weightGrams, weightNewtons, pressureMmHg, adcVoltage, adcRaw);
+             "{\"weight\":%.2f,\"newtons\":%.3f,\"pressure\":%.2f,\"voltage\":%.6f,\"rawI2C\":%d,\"temperatureC\":%s,\"humidityRH\":%s,\"shtReady\":%s}",
+             weightGrams, weightNewtons, pressureMmHg, adcVoltage, adcRaw,
+             temperatureText, humidityText, shtReady ? "true" : "false");
     webSocket.broadcastTXT(data);
   }
 
@@ -299,7 +345,19 @@ void loop() {
       logFile.print(",");
       logFile.print(weightGrams);
       logFile.print(",");
-      logFile.println(pressureMmHg);
+      logFile.print(pressureMmHg);
+      logFile.print(",");
+      if (isnan(temperatureC)) {
+        logFile.print("");
+      } else {
+        logFile.print(temperatureC, 2);
+      }
+      logFile.print(",");
+      if (isnan(humidityRH)) {
+        logFile.println("");
+      } else {
+        logFile.println(humidityRH, 2);
+      }
       logFile.close();
     }
   }
@@ -316,12 +374,16 @@ void loop() {
     Serial.print(" Weight in Grams: ");
     Serial.print(weightGrams);
     Serial.print(" Pressure in mmHg: ");
-    Serial.println(pressureMmHg);
+    Serial.print(pressureMmHg);
+    Serial.print(" Temperature C: ");
+    Serial.print(temperatureC);
+    Serial.print(" Humidity RH: ");
+    Serial.println(humidityRH);
 
     // Actualizar pantalla OLED
     u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.setCursor(0, 10);
+    u8g2.setFont(u8g2_font_5x7_tf);
+    u8g2.setCursor(0, 8);
     if (WiFi.getMode() == WIFI_AP) {
       u8g2.print("AP IP: ");
       u8g2.print(WiFi.softAPIP().toString());
@@ -329,13 +391,24 @@ void loop() {
       u8g2.print("IP: ");
       u8g2.print(WiFi.localIP().toString());
     }
-    
-    u8g2.setCursor(0, 25);
-    u8g2.print("A0 Raw:");
+
+    u8g2.setCursor(0, 19);
+    if (shtReady) {
+      u8g2.print("T:");
+      u8g2.print(temperatureC, 1);
+      u8g2.print("C H:");
+      u8g2.print(humidityRH, 0);
+      u8g2.print("%");
+    } else {
+      u8g2.print("SHT40 no detectado");
+    }
+
+    u8g2.setCursor(0, 31);
+    u8g2.print("A0:");
     u8g2.print(adcRaw);
-    u8g2.print(" (");
+    u8g2.print(" ");
     u8g2.print(adcVoltage, 3);
-    u8g2.print("V)");
+    u8g2.print("V");
     u8g2.sendBuffer();
   }
 }
